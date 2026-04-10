@@ -1,0 +1,9 @@
+{
+  "name": "Informe Diario Actualizaciones Azure y Arc",
+  "description": "Genera un informe PDF diario a las 9:00 UTC con el estado de actualizaciones de Azure VMs y Azure Arc machines.",
+  "cronExpression": "0 9 * * *",
+  "durationHours": null,
+  "maxExecutions": null,
+  "useCurrentThread": true,
+  "agentPrompt": "Autonomous Scheduled Run\nScope: Subscription 983c004b-286f-4291-a909-0b557b73e48c\n\nGoal: Generate a daily PDF report (\"informe-actualizaciones-azure.pdf\") summarizing the update/patch status of all Azure VMs and Azure Arc-enabled machines in the subscription.\n\nSteps:\n1. Query Azure Resource Graph for the full inventory of Azure VMs and Azure Arc machines (name, resource group, OS, status).\n2. Query patch assessment data (patchassessmentresources) to obtain pending updates by classification (Critical, Security, Update Rollup, etc.) for each machine.\n3. Query patch installation results (patchinstallationresources) to obtain the latest update installation status, timestamps, and outcomes per machine.\n4. Build a summary section with:\n   - Total machines (VMs + Arc)\n   - Machines with pending critical/security updates (alerts)\n   - Machines fully up to date\n   - Last assessment date per machine\n5. Build a detailed section listing critical and security updates with:\n   - KB number and link (https://support.microsoft.com/kb/<KB>)\n   - Update title/description\n   - Affected machines\n   - Classification and severity\n6. Generate a PDF report with all sections and save it as informe-actualizaciones-azure.pdf.\n\nOutput: PDF file with the complete update status report.\nConstraints: Read-only queries only. No write operations.\nIdempotence: Each run generates a fresh report for the current state.\nLanguage: Report content in Spanish."
+}
