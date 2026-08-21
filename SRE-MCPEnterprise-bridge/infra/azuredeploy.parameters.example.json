@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerImage": {
+      "value": "<acr-name>.azurecr.io/sre-license-mcp-bridge:1.0.0"
+    },
+    "acrName": {
+      "value": "<acr-name>"
+    },
+    "tenantId": {
+      "value": "<tenant-id>"
+    },
+    "bridgeAudience": {
+      "value": "api://<bridge-api-app-client-id>"
+    },
+    "allowedClientIds": {
+      "value": "<sre-agent-managed-identity-client-id>"
+    }
+  }
+}
