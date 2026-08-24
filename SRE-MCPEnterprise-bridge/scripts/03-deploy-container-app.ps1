@@ -1,5 +1,15 @@
-# This script deploys the ARM template (infra/azuredeploy.json) to stand up the Container Apps
-# environment, managed identity, and Container App running the bridge image built in step 01.
+# Example:
+# .\03-deploy-container-app.ps1 `
+#   -ResourceGroupName "rg-sre-mcp-bridge" `
+#   -TemplateFile "..\infra\azuredeploy.json" `
+#   -ContainerImage "acrsremcpbridge001.azurecr.io/sre-license-mcp-bridge:1.0.0" `
+#   -AcrName "acrsremcpbridge001" `
+#   -TenantId "<tenant-id>" `
+#   -BridgeAudience "api://<bridge-app-client-id>" `
+#   -AllowedClientIds "<sre-agent-managed-identity-client-id>"
+#
+# This script deploys the ARM template to create the Container Apps environment, user-assigned
+# managed identity, and Container App running the bridge image.
 
 param(
   # Same resource group used in 01-create-acr-and-build-image.ps1.
@@ -27,6 +37,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($BridgeAudience -match '^[0-9a-fA-F-]{36}$') {
+  $BridgeAudience = "api://$BridgeAudience"
+}
+
+if ($BridgeAudience -notmatch '^(api://|https://)') {
+  throw "BridgeAudience must be an Application ID URI, for example api://<bridge-app-client-id>."
+}
 
 $params = @(
   "containerImage=$ContainerImage",

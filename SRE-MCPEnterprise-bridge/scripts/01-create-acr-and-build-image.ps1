@@ -1,4 +1,12 @@
-# This script creates an Azure Container Registry (ACR) and builds a Docker image from the specified source path, then pushes the image to the ACR.
+# Example:
+# .\01-create-acr-and-build-image.ps1 `
+#   -ResourceGroupName "rg-sre-mcp-bridge" `
+#   -Location "northeurope" `
+#   -AcrName "acrsremcpbridge001" `
+#   -ImageTag "1.0.0"
+#
+# This script creates an Azure Container Registry (ACR), builds the bridge image from src/,
+# and pushes it to the ACR. It prints the full image name to use in script 03.
 
 param(
   # Resource group to create/use for the ACR. Choose any name; created if it doesn't already exist.

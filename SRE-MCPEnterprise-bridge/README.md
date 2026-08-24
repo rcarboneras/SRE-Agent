@@ -1,76 +1,124 @@
-# Tenant License Optimization MCP Bridge for Azure SRE Agent
+# SRE Agent MCP Enterprise Bridge
 
-## Solution summary
+This repository contains a small, reusable MCP bridge that lets **Azure SRE Agent** query Microsoft Entra / Microsoft Graph tenant licensing data through MCP tools.
 
-This solution lets Azure SRE Agent query Microsoft Graph tenant licensing data through a custom MCP bridge hosted on Azure Container Apps. SRE Agent authenticates to the bridge with managed identity. The bridge validates the Entra JWT, then uses its own user-assigned managed identity to call Microsoft Graph and expose license-optimization MCP tools.
+## Why this solution exists
 
-| Component | Function | Estimated cost |
-| --- | --- | --- |
-| Azure SRE Agent MCP connector | Connects SRE Agent to the MCP bridge using Streamable-HTTP and managed identity. | Included with Azure SRE Agent usage/pricing. |
-| Azure Container Apps, Consumption | Hosts the Node.js MCP bridge. Configured with scale-to-zero, 0.25 vCPU, 0.5 Gi memory, and max 1 replica for lowest cost. | Near-zero when idle; pay per vCPU-second/request while active. Region and usage dependent. |
-| Azure Container Apps managed environment | Runtime environment for the Container App. | No separate fixed charge in Consumption; workload usage is billed. |
-| Azure Container Registry Basic | Stores the MCP bridge container image. | Low fixed monthly cost, commonly around a few USD/month; region dependent. |
-| User-assigned managed identity for bridge | Pulls the image from ACR and calls Microsoft Graph. | No direct cost. |
-| Microsoft Entra app registration for bridge API | Defines the bridge API audience and app role used by SRE Agent managed identity. | No direct cost. |
-| Microsoft Graph API | Provides tenant license, user, sign-in, and report data. | No extra API charge; requires appropriate Microsoft 365/Entra licenses and permissions. |
-| SRE Agent managed identity | Acquires a token for the bridge API and calls the MCP connector. | No direct cost. |
+Microsoft provides **Microsoft MCP Server for Enterprise**:
 
-## MCP tools exposed by the bridge
+https://github.com/mcp/microsoft/EnterpriseMCP
+
+EnterpriseMCP exposes Microsoft Graph-backed tools such as:
+
+- `microsoft_graph_suggest_queries`
+- `microsoft_graph_get`
+- `microsoft_graph_list_properties`
+
+However, EnterpriseMCP currently requires a **pre-registered Entra MCP client application** and does **not** support Dynamic Client Registration (DCR). Azure SRE Agent's generic OAuth MCP connector currently supports OAuth only for MCP servers that support DCR, and it does not expose fields for a custom client ID/client secret.
+
+Because of that OAuth mismatch, SRE Agent cannot connect directly to EnterpriseMCP today.
+
+This bridge solves the gap:
+
+```text
+Azure SRE Agent
+  -> Managed identity token
+  -> Azure Container Apps MCP bridge
+  -> Bridge managed identity
+  -> Microsoft Graph
+```
+
+The bridge gives SRE Agent a compatible MCP endpoint while preserving Entra-based authentication, no stored secrets, and read-only Microsoft Graph access.
+
+## What the bridge does
+
+- Accepts MCP Streamable-HTTP requests from SRE Agent.
+- Validates the SRE Agent managed identity JWT.
+- Uses its own user-assigned managed identity to call Microsoft Graph.
+- Exposes EnterpriseMCP-style Graph helper tools and purpose-built license optimization tools.
+- Runs on Azure Container Apps Consumption with scale-to-zero for low cost.
+
+## Components
+
+| Component | Purpose |
+| --- | --- |
+| Azure SRE Agent MCP connector | Calls the bridge over Streamable-HTTP. |
+| SRE Agent managed identity | Authenticates SRE Agent to the bridge API. |
+| Bridge API app registration | Defines the token audience and `McpBridge.Access` app role. |
+| Azure Container App | Hosts the Node.js MCP bridge. |
+| Bridge user-assigned managed identity | Pulls the image from ACR and calls Microsoft Graph. |
+| Azure Container Registry | Stores the bridge container image. |
+| Microsoft Graph | Provides tenant license, user, app, group, audit, and sign-in data. |
+
+## MCP tools exposed
 
 | Tool | Purpose |
 | --- | --- |
-| `microsoft_graph_suggest_queries` | EnterpriseMCP-style query suggestion tool for common read-only Graph scenarios. |
-| `microsoft_graph_get` | EnterpriseMCP-style read-only Microsoft Graph v1.0 GET executor. |
-| `microsoft_graph_list_properties` | EnterpriseMCP-style schema helper for common Entra/Graph entities. |
-| `get_tenant_directory_summary` | Returns organization, domain, SKU, user, group, app, and service principal summary data. |
-| `get_tenant_license_consumption` | Reads `/subscribedSkus` and returns purchased/consumed license data by SKU. |
-| `find_unassigned_licenses` | Calculates unassigned capacity and SKU utilization percentage. |
+| `microsoft_graph_suggest_queries` | Suggests common read-only Graph queries. |
+| `microsoft_graph_get` | Executes read-only Microsoft Graph v1.0 GET requests. |
+| `microsoft_graph_list_properties` | Lists common Graph entity properties. |
+| `get_tenant_directory_summary` | Summarizes organization, domains, SKUs, users, groups, apps, and service principals. |
+| `get_tenant_license_consumption` | Returns purchased and consumed license units by SKU. |
+| `find_unassigned_licenses` | Calculates unassigned licenses and utilization by SKU. |
 | `get_assigned_licenses_per_user` | Lists users with assigned licenses. |
-| `search_directory_users` | Searches users by display name or UPN and returns license/sign-in relevant fields. |
-| `get_user_license_details` | Returns license details for a specific user. |
-| `detect_inactive_licensed_users` | Finds licensed users whose last sign-in is older than the threshold. |
-| `generate_license_optimization_recommendations` | Generates read-only optimization recommendations from SKU utilization and inactive licensed users. |
-| `list_directory_groups` | Lists groups for access governance and hygiene analysis. |
-| `list_applications_without_owners` | Finds app registrations that do not have owners. |
+| `search_directory_users` | Searches users by display name or UPN. |
+| `get_user_license_details` | Returns license details for one user. |
+| `detect_inactive_licensed_users` | Finds licensed users with no recent sign-in activity. |
+| `generate_license_optimization_recommendations` | Generates license reclamation and renewal recommendations. |
+| `list_directory_groups` | Lists groups for governance and hygiene review. |
+| `list_applications_without_owners` | Finds app registrations without owners. |
 | `list_service_principals` | Lists enterprise applications/service principals. |
-| `list_tenant_domains` | Lists tenant domains and verification/default state. |
-| `list_recent_directory_audits` | Lists recent directory audit events for provenance/investigation context. |
+| `list_tenant_domains` | Lists tenant domains and verification state. |
+| `list_recent_directory_audits` | Lists recent directory audit events. |
 
-## Folder contents
+## Repository layout
 
-| Path | Description |
+| Path | Purpose |
 | --- | --- |
-| `src\` | Parameterized Node.js/TypeScript MCP bridge source. |
-| `infra\azuredeploy.json` | ARM template for Azure Container Apps, ACR pull identity, and lowest-cost compute settings. |
-| `infra\azuredeploy.parameters.example.json` | Example parameter file. |
-| `scripts\` | End-to-end deployment, identity, permission, and verification scripts. |
-| `diagram\tenant-license-mcp-bridge-azure-icons.drawio` | Editable architecture diagram for diagrams.net/draw.io with embedded official Azure icons. |
-| `diagram\tenant-license-mcp-bridge-azure-icons.svg` | Viewable architecture diagram with embedded official Azure icons. |
-| `diagram\tenant-license-mcp-runtime-flow-azure-icons.drawio` | Editable runtime interaction flow diagram showing each user interaction step through final response. |
-| `diagram\tenant-license-mcp-runtime-flow-azure-icons.svg` | Viewable runtime interaction flow diagram with embedded official Azure icons. |
-| `icons\azure-official\` | Official Azure SVG icons used by the diagram, downloaded from Microsoft Learn Azure Architecture Center. |
-| `icons\README.md` | Source and usage note for the official Azure icons. |
-| `docs\Tenant-License-MCP-Bridge-Prerequisites.docx` | Word document with prerequisites and recreation steps. |
+| `src\` | Node.js/TypeScript MCP bridge source and Dockerfile. |
+| `infra\azuredeploy.json` | Parameterized ARM template for Container Apps and managed identity. |
+| `infra\azuredeploy.parameters.example.json` | Example deployment parameters. |
+| `scripts\` | Deployment and permission scripts. |
+| `docs\architecture-simple.drawio` / `.svg` | Customer-facing architecture diagram. |
+| `docs\flow-simple.drawio` / `.svg` | Customer-facing request and permission flow diagram. |
+| `docs\Tenant-License-MCP-Bridge-Peer-Briefing.pptx` | Short customer/peer presentation. |
+| `docs\Tenant-License-MCP-Bridge-Prerequisites.docx` | Customer-facing prerequisites and setup guide. |
 
-## High-level deployment flow
+## Deployment sequence
 
-1. Create/push the MCP bridge image to Azure Container Registry.
-2. Create the Entra app registration representing the bridge API.
-3. Deploy Azure Container Apps using the parameterized ARM template.
-4. Grant Microsoft Graph application permissions to the bridge managed identity.
-5. Grant the SRE Agent managed identity access to the bridge API app role.
-6. Configure SRE Agent MCP connector with managed identity and the bridge token scope.
+Run the scripts in order from the `scripts` folder:
+
+1. `01-create-acr-and-build-image.ps1`
+2. `02-create-bridge-api-app.ps1`
+3. `03-deploy-container-app.ps1`
+4. `04-grant-graph-permissions-to-bridge-mi.ps1`
+5. `05-grant-sre-agent-access-to-bridge-api.ps1`
+6. `06-verify-deployment.ps1`
 
 ## SRE Agent connector settings
-
-Use these values after deployment:
 
 | Field | Value |
 | --- | --- |
 | Name | `license-optimization-mcp` |
 | Connection type | `Streamable-HTTP` |
-| URL | ARM output `sreAgentConnectorUrl` |
+| URL | Output from ARM deployment: `sreAgentConnectorUrl` |
 | Authentication method | `Managed identity` |
-| Managed identity | The SRE Agent user-assigned managed identity |
+| Managed identity | SRE Agent user-assigned managed identity |
 | Federated identity credential | Unchecked |
 | Azure AD token scope | `api://<bridge-app-client-id>/.default` |
+
+Important:
+
+```text
+Container App BRIDGE_AUDIENCE = api://<bridge-app-client-id>
+SRE Agent token scope         = api://<bridge-app-client-id>/.default
+```
+
+## Security model
+
+- SRE Agent does not receive direct Microsoft Graph permissions.
+- The bridge validates the SRE Agent managed identity token before accepting MCP requests.
+- The bridge uses its own managed identity for Microsoft Graph app-only access.
+- Graph access is read-only.
+- The bridge does not assign, remove, or modify licenses.
+

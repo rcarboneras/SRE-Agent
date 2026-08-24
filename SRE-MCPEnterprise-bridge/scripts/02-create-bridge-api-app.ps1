@@ -1,6 +1,10 @@
-# This script registers a Microsoft Entra ID app for the bridge API, exposes a delegated scope and an
-# app role for machine-to-machine access, and creates the app's service principal. Outputs the
-# bridgeAppClientId/bridgeAudience/bridgeTokenScope values needed by later scripts.
+# Example:
+# .\02-create-bridge-api-app.ps1 `
+#   -DisplayName "sre-license-mcp-bridge-api"
+#
+# This script registers a Microsoft Entra ID app for the bridge API, exposes a delegated scope and
+# an app role for machine-to-machine access, and creates the app's service principal. It outputs
+# bridgeAppClientId, bridgeAudience, and bridgeTokenScope values needed by later scripts.
 
 param(
   # Display name for the new Entra app registration; default is fine unless it collides with an existing app.

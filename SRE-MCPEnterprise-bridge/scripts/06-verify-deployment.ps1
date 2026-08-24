@@ -1,16 +1,30 @@
+# Example:
+# .\06-verify-deployment.ps1 `
+#   -ResourceGroupName "rg-sre-mcp-bridge" `
+#   -ContainerAppName "ca-license-mcp-bridge" `
+#   -BridgeAudience "api://<bridge-app-client-id>"
+#
 # This script verifies the deployment by checking the Container App's health endpoint, printing the
-# running image, and (if an Azure CLI token can be acquired) calling the MCP endpoint with a bearer token.
+# running image, and optionally calling the MCP endpoint with a bearer token.
 
 param(
   # Same resource group used in the prior scripts.
   [Parameter(Mandatory = $true)] [string] $ResourceGroupName,
   # The Container App name; matches -ContainerAppName from 03-deploy-container-app.ps1 (default "ca-license-mcp-bridge").
   [Parameter(Mandatory = $true)] [string] $ContainerAppName,
-  # The "bridgeAudience" value output by 02-create-bridge-api-app.ps1.
+  # The bridge API audience. Use "api://<bridge-app-client-id>"; a raw GUID is normalized automatically.
   [Parameter(Mandatory = $true)] [string] $BridgeAudience
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($BridgeAudience -match '^[0-9a-fA-F-]{36}$') {
+  $BridgeAudience = "api://$BridgeAudience"
+}
+
+if ($BridgeAudience -notmatch '^(api://|https://)') {
+  throw "BridgeAudience must be an Application ID URI, for example api://<bridge-app-client-id>."
+}
 
 $fqdn = az containerapp show `
   --resource-group $ResourceGroupName `
@@ -31,7 +45,7 @@ az containerapp show `
   --query "properties.template.containers[0].image" `
   --output tsv
 
-Write-Host "Manual token test requires interactive/user consent for Azure CLI if not already granted."
+Write-Host "Attempting MCP tools/list with an Azure CLI token for $BridgeAudience."
 $token = az account get-access-token --resource $BridgeAudience --query accessToken --output tsv 2>$null
 if ($token) {
   Invoke-WebRequest `

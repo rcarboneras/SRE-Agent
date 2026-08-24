@@ -1,5 +1,9 @@
-# This script grants the SRE Agent's managed identity the app role needed to call the bridge API,
-# by creating an app role assignment on the bridge app's service principal.
+# Example:
+# .\05-grant-sre-agent-access-to-bridge-api.ps1 `
+#   -BridgeAppClientId "<bridge-app-client-id>" `
+#   -SreAgentManagedIdentityPrincipalId "<sre-agent-managed-identity-principal-id>"
+#
+# This script grants the SRE Agent's managed identity the app role needed to call the bridge API.
 
 param(
   # The "bridgeAppClientId" output from 02-create-bridge-api-app.ps1.
