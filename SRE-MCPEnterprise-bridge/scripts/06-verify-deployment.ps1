@@ -1,6 +1,12 @@
+# This script verifies the deployment by checking the Container App's health endpoint, printing the
+# running image, and (if an Azure CLI token can be acquired) calling the MCP endpoint with a bearer token.
+
 param(
+  # Same resource group used in the prior scripts.
   [Parameter(Mandatory = $true)] [string] $ResourceGroupName,
+  # The Container App name; matches -ContainerAppName from 03-deploy-container-app.ps1 (default "ca-license-mcp-bridge").
   [Parameter(Mandatory = $true)] [string] $ContainerAppName,
+  # The "bridgeAudience" value output by 02-create-bridge-api-app.ps1.
   [Parameter(Mandatory = $true)] [string] $BridgeAudience
 )
 

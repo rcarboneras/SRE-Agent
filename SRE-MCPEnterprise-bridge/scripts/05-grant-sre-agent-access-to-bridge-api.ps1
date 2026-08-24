@@ -1,6 +1,12 @@
+# This script grants the SRE Agent's managed identity the app role needed to call the bridge API,
+# by creating an app role assignment on the bridge app's service principal.
+
 param(
+  # The "bridgeAppClientId" output from 02-create-bridge-api-app.ps1.
   [Parameter(Mandatory = $true)] [string] $BridgeAppClientId,
+  # Principal (object) ID of the SRE Agent's managed identity; find it via `az identity show` for that identity or the Azure portal.
   [Parameter(Mandatory = $true)] [string] $SreAgentManagedIdentityPrincipalId,
+  # Must match the AppRoleValue used in 02-create-bridge-api-app.ps1.
   [string] $AppRoleValue = "McpBridge.Access"
 )
 

@@ -1,5 +1,10 @@
+# This script grants Microsoft Graph application permissions (app roles) to the bridge Container App's
+# managed identity so it can read tenant/license/audit data on behalf of the bridge.
+
 param(
+  # The "bridgeManagedIdentityPrincipalId" output from 03-deploy-container-app.ps1's deployment outputs.
   [Parameter(Mandatory = $true)] [string] $BridgeManagedIdentityPrincipalId,
+  # Microsoft Graph app role values to grant; default list covers what the bridge needs.
   [string[]] $GraphRoles = @(
     "Organization.Read.All",
     "Directory.Read.All",
