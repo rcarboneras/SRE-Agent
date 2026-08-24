@@ -122,3 +122,165 @@ SRE Agent token scope         = api://<bridge-app-client-id>/.default
 - Graph access is read-only.
 - The bridge does not assign, remove, or modify licenses.
 
+## Example prompts for testing
+
+Use these prompts in SRE Agent after the `license-optimization-mcp` connector is connected and the tools are selected.
+
+### Interactive prompts
+
+#### 1. Tenant license consumption overview
+
+```text
+Use the license-optimization-mcp connector to get the current tenant license consumption.
+
+Show me:
+- All subscribed SKUs
+- Purchased/enabled units
+- Consumed units
+- Unassigned units
+- Utilization percentage per SKU
+
+Return the result as a table and highlight any SKU with utilization below 70%.
+```
+
+#### 2. Find unassigned licenses
+
+```text
+Use the license-optimization-mcp connector to identify unassigned licenses in the tenant.
+
+For each SKU, show:
+- SKU part number
+- Total enabled licenses
+- Consumed licenses
+- Unassigned licenses
+- Utilization percentage
+
+Then summarize which SKUs have the highest reclaim or cost-avoidance opportunity.
+```
+
+#### 3. Detect inactive licensed users
+
+```text
+Use the license-optimization-mcp connector to find users who have assigned licenses but have not signed in during the last 90 days.
+
+Return:
+- User display name
+- User principal name
+- Account enabled status
+- Last sign-in date
+- Number of assigned licenses
+
+Group the results by accountEnabled = true or false, and recommend which users should be reviewed first.
+```
+
+#### 4. Generate license optimization recommendations
+
+```text
+Use the license-optimization-mcp connector to generate tenant license optimization recommendations.
+
+Analyze:
+- License consumption by SKU
+- Unassigned license capacity
+- Licensed users inactive for 90 days
+- SKUs with low utilization
+
+Return:
+- Executive summary
+- Top 5 optimization opportunities
+- Risks or validation steps before reclaiming licenses
+- Suggested next actions for the license owner
+```
+
+#### 5. User-specific license investigation
+
+```text
+Use the license-optimization-mcp connector to investigate license assignment for this user: <user@domain.com>.
+
+Show:
+- Basic user profile
+- Account enabled status
+- Assigned licenses
+- License details and service plans
+- Last sign-in activity if available
+
+Then tell me whether this user appears active and whether the license assignment should be reviewed.
+```
+
+#### 6. EnterpriseMCP-style Graph query test
+
+```text
+Use the license-optimization-mcp connector and the microsoft_graph_suggest_queries tool to suggest Microsoft Graph queries for this intent:
+
+"Find licensed users who have not signed in recently and estimate potential license savings."
+
+Then use the most relevant read-only Graph query through microsoft_graph_get and summarize the results.
+```
+
+### Scheduled prompts
+
+#### 7. Weekly license optimization report
+
+```text
+Every Monday at 9:00 AM, use the license-optimization-mcp connector to generate a weekly license optimization report.
+
+Include:
+- Current license consumption by SKU
+- Unassigned licenses by SKU
+- SKUs under 70% utilization
+- Licensed users inactive for more than 90 days
+- Top 5 recommended cleanup actions
+
+Format the output as an executive summary followed by a detailed table.
+```
+
+#### 8. Monthly renewal readiness review
+
+```text
+On the first business day of every month, use the license-optimization-mcp connector to prepare a license renewal readiness report.
+
+Analyze:
+- Purchased versus consumed licenses
+- Month-over-month license utilization if prior reports are available
+- Unassigned license capacity
+- Inactive licensed users over 90 days
+- Potential over-provisioned SKUs
+
+Provide recommendations for renewal quantity review, license reclamation, and follow-up with business owners.
+```
+
+#### 9. Daily inactive licensed user watch
+
+```text
+Every weekday at 8:30 AM, use the license-optimization-mcp connector to check for newly inactive licensed users.
+
+Use a 90-day inactivity threshold.
+
+Return only:
+- Users that are newly detected compared with the previous run, if memory/history is available
+- User principal name
+- Last sign-in date
+- Assigned license count
+- Recommended review priority
+
+If there are no new findings, respond with a short "No new inactive licensed users detected" summary.
+```
+
+#### 10. Weekly Entra hygiene and license governance check
+
+```text
+Every Friday at 3:00 PM, use the license-optimization-mcp connector to run an Entra hygiene and license governance check.
+
+Include:
+- License utilization by SKU
+- Unassigned licenses
+- Inactive licensed users
+- App registrations without owners
+- Service principal inventory summary
+- Recent directory audit events that may affect license or identity governance
+
+Return:
+- Key risks
+- Recommended actions
+- Items that require admin review
+- Items that can be safely monitored
+```
