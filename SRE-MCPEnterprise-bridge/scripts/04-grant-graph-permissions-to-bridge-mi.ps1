@@ -3,7 +3,7 @@
 #   -BridgeManagedIdentityPrincipalId "<bridge-managed-identity-principal-id>"
 #
 # This script grants Microsoft Graph application permissions to the bridge Container App's managed
-# identity so it can read tenant/license/audit data. Requires an admin role that can grant app roles.
+# identity Object ID, so it can read tenant/license/audit data. Requires an admin role that can grant app roles.
 
 param(
   # The "bridgeManagedIdentityPrincipalId" output from 03-deploy-container-app.ps1's deployment outputs.
