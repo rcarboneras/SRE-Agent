@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schemas.sre.azure.com/scheduled-task-export/v1.json",
+  "exportedAtUtc": "2026-09-22T16:17:00Z",
+  "task": {
+    "id": "e1ca8c26-0978-439f-9b8f-d7735cb86009",
+    "name": "Monthly orphaned RBAC principal audit",
+    "description": "Monthly read-only audit of orphaned RBAC principals at resource group, subscription, management group, and tenant-root scopes.",
+    "status": "Active",
+    "executionCount": 1,
+    "lastExecutionTimeUtc": "2026-09-22T15:47:57.6243965Z"
+  },
+  "executionHistory": [
+    {
+      "executionId": "673bd54e-ad4d-4deb-ae8e-4806fb3b27c4",
+      "executionTimeUtc": "2026-09-22T15:47:57.6243965Z",
+      "scheduledExecutionTimeUtc": "2026-09-22T15:47:57.6243965Z",
+      "manualExecution": true,
+      "completed": true,
+      "success": false,
+      "durationMs": 239928,
+      "errorMessage": "Rate limit capacity exceeded. Retry after 7 seconds."
+    }
+  ],
+  "reusability": {
+    "sourceTaskId": "e1ca8c26-0978-439f-9b8f-d7735cb86009",
+    "requiresConfiguration": [
+      "cronExpression",
+      "agentPrompt",
+      "scope/resource identifiers",
+      "execution limits and thread grouping"
+    ],
+    "note": "The scheduling API exposed task metadata and execution history, but not the full schedule or agent prompt. Supply the required configuration before recreating this task."
+  }
+}
