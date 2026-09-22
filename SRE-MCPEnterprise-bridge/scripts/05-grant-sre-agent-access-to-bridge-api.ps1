@@ -1,7 +1,7 @@
 # Example:
 # .\05-grant-sre-agent-access-to-bridge-api.ps1 `
 #   -BridgeAppClientId "<bridge-app-client-id>" `
-#   -SreAgentManagedIdentityPrincipalId "<sre-agent-managed-identity-principal-id>"
+#   -SreAgentManagedIdentityPrincipalId "<sre-agent-managed-identity-principal-object-id>"
 #
 # This script grants the SRE Agent's managed identity the app role needed to call the bridge API.
 

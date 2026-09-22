@@ -50,6 +50,70 @@ The bridge gives SRE Agent a compatible MCP endpoint while preserving Entra-base
 | Azure Container Registry | Stores the bridge container image. |
 | Microsoft Graph | Provides tenant license, user, app, group, audit, and sign-in data. |
 
+## Requirements
+
+### Azure subscription and providers
+
+- An Azure subscription and a resource group in a region that supports Azure Container Apps Consumption.
+- Azure CLI signed in to the target tenant and subscription. The scripts use the `account`, `group`, `acr`, `deployment`, and `ad` command groups, plus `az rest` for Microsoft Graph calls.
+- The following resource providers must be registered in the subscription:
+  - `Microsoft.ContainerRegistry`
+  - `Microsoft.App`
+  - `Microsoft.ManagedIdentity`
+  - `Microsoft.Authorization`
+- The deployment identity must be allowed to create and update the resource group, Azure Container Registry, Container Apps managed environment, Container App, and user-assigned managed identity.
+- The deployment identity must also be allowed to create the `AcrPull` role assignment on the ACR. `Contributor` alone does not include permission to create role assignments; use `Owner`, `User Access Administrator` plus the required resource permissions, or an equivalent custom role.
+
+Provider registration can be checked or performed with:
+
+```powershell
+az provider show --namespace Microsoft.ContainerRegistry --query registrationState --output tsv
+az provider show --namespace Microsoft.App --query registrationState --output tsv
+az provider show --namespace Microsoft.ManagedIdentity --query registrationState --output tsv
+az provider show --namespace Microsoft.Authorization --query registrationState --output tsv
+
+# Run only when a provider is not Registered.
+az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.ManagedIdentity
+az provider register --namespace Microsoft.Authorization
+```
+
+### Microsoft Entra and Microsoft Graph permissions
+
+The person running the permission scripts needs a directory role that permits managing app registrations, service principals, and app-role assignments. `Application Administrator` or `Cloud Application Administrator` is typically sufficient for these operations, subject to the tenant's consent policy. A more privileged administrator may be required by tenant policy to grant Microsoft Graph application permissions.
+
+The bridge API app registration created by script 02 exposes:
+
+- The `McpBridge.Access` application role for the SRE Agent managed identity.
+- The `user_impersonation` delegated scope for the API definition. The bridge flow uses the application role; it does not depend on delegated user access.
+
+Script 04 grants the bridge user-assigned managed identity these Microsoft Graph **application permissions**:
+
+| Permission | Used for |
+| --- | --- |
+| `Organization.Read.All` | Tenant organization and subscribed SKU information. |
+| `Directory.Read.All` | Domains, groups, applications, and service principals. |
+| `User.Read.All` | User profiles and assigned licenses. |
+| `AuditLog.Read.All` | Directory audit events and sign-in activity. |
+| `Reports.Read.All` | Microsoft 365 usage and licensing report data where applicable. |
+
+Tenant-wide admin consent is required for these application permissions. The bridge identity must be the identity created by the ARM deployment, and its principal ID is the `bridgeManagedIdentityPrincipalId` output.
+
+### SRE Agent identity
+
+- An SRE Agent user-assigned managed identity that can be selected by the MCP connector.
+- Its client ID must be passed to script 03 as `AllowedClientIds`.
+- Its principal (object) ID must be passed to script 05 as `SreAgentManagedIdentityPrincipalId`.
+- Script 05 grants this identity the bridge API's `McpBridge.Access` application role. The connector must request the scope `api://<bridge-app-client-id>/.default` and send a token whose audience is `api://<bridge-app-client-id>`.
+
+### Local tools and inputs
+
+- PowerShell 7 or later is recommended.
+- Azure CLI with permission to use the commands and Graph operations described above.
+- The bridge source must be available locally for `az acr build`; local Docker is not required because the image is built in ACR.
+- Required deployment values: subscription, resource group, Azure region, globally unique ACR name, tenant ID, bridge app client ID, bridge managed identity output, and SRE Agent managed identity IDs.
+
 ## MCP tools exposed
 
 | Tool | Purpose |
