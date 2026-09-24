@@ -1,35 +1,39 @@
-# Monthly Orphaned RBAC Principal Audit
-
-## Scheduled task prompt
+# Monthly Orphaned RBAC Principal Audit Prompt
 
 ```text
-Autonomous Scheduled Run
+Autonomous Scheduled Run — Monthly orphaned RBAC principal audit
 
-Goal: Produce a fresh, read-only orphaned-RBAC audit covering exact Resource Group, Subscription, Management Group, and tenant-root assignments. An orphaned principal is an Azure RBAC-assigned principal that does not resolve in the current Entra directory.
+Goal: Produce a read-only, complete audit of Azure RBAC assignments at management-group, subscription, resource-group, and tenant-root scopes whose assigned Entra principal no longer resolves. Include orphaned Users, Groups, and Service Principals; do not modify assignments.
 
-Scope: All subscriptions and management groups readable by this agent. Include only direct role assignments whose scopes are exactly a resource group, subscription, management group, or tenant root. Exclude assignments scoped below a resource group.
+Prerequisite — Microsoft Graph access:
+- The user-assigned managed identity client ID must have the Microsoft Graph Application permission `Directory.Read.All`, with tenant-wide admin consent granted. This is a Graph app-role assignment, not an Azure RBAC role assignment.
+- Acquire Graph tokens for `https://graph.microsoft.com/.default` with that user-assigned identity.
+- If Graph returns 401, 403, consent, or permission errors, do not classify any unresolved principal as deleted. Still create all artifacts, mark the audit as partial coverage, and prominently report the exact prerequisite: `Directory.Read.All` application permission plus admin consent for the user-assigned managed identity.
 
-Fast workflow:
-1. Use the user-assigned managed identity client ID 11f299d1-abc0-450c-9e40-68f13c658e56 for ARM and Azure Resource Graph reads; the default system identity may return 403 for Resource Graph.
-2. Discover enabled subscriptions, query Azure Resource Graph for subscription- and resource-group-scoped Microsoft.Authorization/roleAssignments, and enumerate direct management-group role assignments through ARM. Deduplicate by role-assignment ID.
-3. Tenant-root assignments: direct ARM listing can be denied. Use an inherited assignment query from one readable subscription with `az role assignment list --all --include-inherited`, keep only scope `/`, and deduplicate by assignment ID.
-4. Resolve all distinct principal IDs efficiently with Microsoft Graph `directoryObjects/getByIds` in batches of at most 900. Include `user`, `group`, `servicePrincipal`, and `device` types. Do not use one-by-one lookup except as a narrow fallback.
-5. Mark a principal orphaned only when it is absent from the current Entra directory. Preserve Azure RBAC principal type. Resolve role definition IDs to role names through ARM; fall back to the ID only if the definition cannot be read.
-6. Do not change RBAC, Entra objects, Azure resources, schedules, or configuration.
+Scope and identity:
+- Enumerate every accessible management group, subscription, and resource group, plus tenant-root assignments where readable.
+- Use the user-assigned managed identity client ID for ARM and Azure Resource Graph access when the default identity is denied.
+- Collect direct and inherited role assignments where the APIs expose them; reconcile tenant-root assignments through the managed Azure command path if the direct ARM list is denied.
 
-Reliability:
-- For transient ARM or Microsoft Graph failures only (HTTP 408, 429, and 5xx), retry up to 3 times with bounded exponential backoff: 2, 5, then 10 seconds.
-- Do not retry authorization, invalid-request, or resource-not-found errors. Record the failed scope and continue with remaining readable scopes.
-- If tenant-root direct listing is denied, use the inherited-assignment fallback. If that fallback fails, record tenant-root coverage as unavailable.
-- Validate that both output files exist, are non-empty, and contain the expected headers before publishing them.
-- Never fail the whole run because one management group, subscription, role definition, or directory-object lookup is unavailable; finish with an explicit coverage-limitation section.
+Principal verification:
+- De-duplicate principal IDs and verify them against Microsoft Graph using bulk `directoryObjects/getByIds` where available.
+- Treat a principal as orphaned only when the directory lookup confirms it does not exist. Do not infer deletion solely from a missing display name, Graph authorization failure, or an incomplete Resource Graph result.
+- Preserve scope, scope type, principal ID, principal type, permission/role, and assignment ID for every confirmed orphaned assignment.
 
-Artifacts and output:
-- Create two timestamped files under the current thread's `tmp/ThreadFiles/` directory. Use a UTC `YYYYMMDD-HHMMSS` suffix; never overwrite prior artifacts.
-  1. `orphaned-rbac-principals-<timestamp>.csv` with columns: scopeType, scope, principalId, principalType, permission, assignmentId, directoryStatus.
-  2. `orphaned-rbac-report-<timestamp>.md` containing the run timestamp, coverage/limitation summary, metrics table, and the complete Markdown table of every orphaned assignment.
-- Persist both files for download and include both links in the run output.
-- Keep the chat output concise: include a summary table only, not the full assignment list. The Markdown report must carry the complete table.
+Resilience and coverage:
+- Retry transient 408, 429, and 5xx failures up to three times with 2, 5, and 10 second backoff.
+- Continue scanning other readable scopes if an individual scope fails; report failed or unreadable scopes as coverage warnings.
+- Validate that generated files are non-empty and carry their expected headers before reporting success.
 
-Idempotence: Each run must take a fresh inventory and create new timestamped artifacts.
+Artifacts:
+- Use a UTC timestamp in the filenames and create a CSV, Markdown, and self-contained HTML report under the thread file area.
+- The CSV and Markdown must contain the orphaned-assignment table and the coverage warnings, if any.
+- The HTML must include summary metrics, free-text search, scope-type and principal-type filters, Azure Portal links to each scope and role assignment, and a Copy principal action.
+- Make every HTML table column sortable. Each header must be a keyboard-accessible button; expose the active sort on the parent table header using `aria-sort`, show ascending/descending indicators, and use a deterministic assignment-ID tie-breaker. The Actions column must sort by role-assignment ID.
+- Return working download links for the CSV, Markdown, and HTML artifacts and a concise count summary by principal type and scope type.
+
+Safety and idempotence:
+- Read-only only: never delete, modify, or remediate RBAC assignments.
+- If no orphaned assignments are found, still produce the three artifacts with headers and an explicit zero-result summary.
+- Clearly distinguish complete coverage from partial coverage with warnings.
 ```
