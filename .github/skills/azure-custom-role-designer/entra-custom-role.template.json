@@ -1,0 +1,12 @@
+{
+  "displayName": "<ORG> <Capability>",
+  "description": "<What it allows and at which scope>. Owner: <team>. Created: <yyyy-mm-dd>.",
+  "isEnabled": true,
+  "rolePermissions": [
+    {
+      "allowedResourceActions": [
+        "microsoft.directory/applications/standard/read"
+      ]
+    }
+  ]
+}
