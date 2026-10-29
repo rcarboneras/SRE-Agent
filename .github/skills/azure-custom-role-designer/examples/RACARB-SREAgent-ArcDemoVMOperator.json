@@ -1,0 +1,17 @@
+{
+  "Name": "RACARB-SREAgent-ArcDemoVMOperator",
+  "IsCustom": true,
+  "Description": "Lets the SRE Agent managed identity start VMs in resource group arc-demo (observed nightly start of HVHOST/vm2025sql). Replaces the need for Owner on the subscription. Owner: racarb. Created: 2026-10-29.",
+  "Actions": [
+    "Microsoft.Resources/subscriptions/resourceGroups/read",
+    "Microsoft.Compute/virtualMachines/read",
+    "Microsoft.Compute/virtualMachines/instanceView/read",
+    "Microsoft.Compute/virtualMachines/start/action"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/983c004b-286f-4291-a909-0b557b73e48c/resourceGroups/arc-demo"
+  ]
+}

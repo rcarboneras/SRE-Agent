@@ -1,0 +1,14 @@
+{
+  "Name": "<ORG>-<Workload>-<Capability>",
+  "IsCustom": true,
+  "Description": "<What it allows, for whom, at which scope>. Owner: <team>. Created: <yyyy-mm-dd>.",
+  "Actions": [
+    "Microsoft.Resources/subscriptions/resourceGroups/read"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>"
+  ]
+}
