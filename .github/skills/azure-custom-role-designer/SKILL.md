@@ -95,8 +95,15 @@ Design rules (Entra):
 - **Create only after explicit approval** (Review mode shows an approval card):
   ```bash
   az role definition create --role-definition @role.json --subscription <sub>
-  az role definition update --role-definition @role.json --subscription <sub>   # changes: must include "Name" or "id"
+  az role definition update --role-definition @role.json --subscription <sub>
   ```
+  `update` needs the **list-output format**, not the create format (verified 2026-10-30): it fails with
+  `KeyError: 'roleName'` if the JSON uses `Name`/`Id`. Use `"roleName": "<name>"` and
+  `"id": "/subscriptions/<sub>/providers/Microsoft.Authorization/roleDefinitions/<guid>"`, plus
+  `Description`, `Actions`, `NotActions`, `DataActions`, `NotDataActions`, `AssignableScopes`.
+  Read the current definition first and resend **all** actions: update replaces the whole definition.
+  Widening `AssignableScopes` (e.g. RG → subscription) only makes the role *assignable* more widely;
+  check existing assignments (`az role assignment list --all --fill-principal-name false`) before and after.
   Entra (the agent cannot write to Graph: hand the user this script):
   ```powershell
   Connect-MgGraph -Scopes RoleManagement.ReadWrite.Directory
