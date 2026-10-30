@@ -1,8 +1,9 @@
 # Role Designer custom agent for Azure SRE Agent.
-# Format exported from Builder > Agent Canvas > custom agent > YAML tab (2026-10-30).
-# To register: Builder > Agent Canvas > Create > Custom agent > YAML tab > paste this file.
-# Prerequisite: the skill "azure-custom-role-designer" (.github/skills/azure-custom-role-designer) must exist first.
-# Approval: keep a global tool access policy "Ask" on RunAzCliWriteCommands so role creation always pauses for approval.
+# Format verified: exported from Builder > Agent Canvas > custom agent > YAML tab (2026-10-30).
+# Install guide: Agents/README.md
+# Prerequisite: create the skill "azure-custom-role-designer" (Skills/azure-custom-role-designer) first.
+# No MCP connector required: Microsoft Graph is queried directly with read-only `az ad` commands.
+# Approval: keep a global tool access policy "Ask" on RunAzCliWriteCommands so role changes always pause for approval.
 api_version: azuresre.ai/v1
 kind: AgentConfiguration
 spec:
@@ -60,15 +61,26 @@ spec:
     built-in roles).
 
 
-    Limits: Azure CLI writes allowed only with approval (az role definition create|update). No
-    delete/remove, no az rest. Microsoft Graph is read-only, so Entra custom roles and PIM
-    eligibility are delivered as scripts.
+    Microsoft Graph: query it directly with read-only az ad commands through RunAzCliReadCommands
+    (az ad user show, az ad group list --filter, az ad group member list, az ad sp show/list,
+    az ad app show) to resolve users, groups, role-assignable groups, service principals and managed
+    identities to object IDs. Do not depend on MCP connectors. Entra role definitions, Entra role
+    assignments and PIM schedules cannot be read this way (az rest is not available): give the user a
+    Microsoft Graph PowerShell script and ask for the output.
+
+
+    Limits: Azure CLI writes only with approval, and only az role definition create|update. For
+    az role definition update, read the current definition first, resend it complete, and use the
+    list-output JSON format (roleName + full id), never Name/Id. Never delete or remove anything and
+    never use az rest. Entra custom roles, role assignments and PIM eligibility are delivered as
+    scripts for the user to run.
+
+
+    Answer in the language the user writes in.
   tools:
     - RunAzCliReadCommands
     - GetAzCliHelp
     - RunAzCliWriteCommands
-  mcp_tools:
-    - MCPEnterprise-TR_microsoft_graph_get
   agent_type: Autonomous
   enable_skills: true
   allowed_skills:

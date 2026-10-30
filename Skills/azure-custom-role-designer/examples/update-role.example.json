@@ -1,0 +1,16 @@
+{
+  "roleName": "<ORG>-<Workload>-<Capability>",
+  "id": "/subscriptions/<subscription-id>/providers/Microsoft.Authorization/roleDefinitions/<role-guid>",
+  "roleType": "CustomRole",
+  "type": "Microsoft.Authorization/roleDefinitions",
+  "Description": "<What it allows, for whom, at which scope>. Owner: <team>. Created: <yyyy-mm-dd>. Updated: <yyyy-mm-dd> (<what changed>).",
+  "Actions": [
+    "Microsoft.Resources/subscriptions/resourceGroups/read"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<subscription-id>"
+  ]
+}

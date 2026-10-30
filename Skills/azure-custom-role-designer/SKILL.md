@@ -25,6 +25,16 @@ Never creates or assigns a role without explicit user approval.
 | Who gets it (user, group, managed identity) and via PIM? | Assignment plan |
 | Existing identity to right-size? | Enables evidence-based design (step 3) |
 
+Resolve every principal to its **object ID** with Microsoft Graph, queried directly through read-only `az ad` commands (no MCP connector needed):
+```bash
+az ad user show --id <upn> --query "{id:id, upn:userPrincipalName}" -o json
+az ad group list --filter "displayName eq '<name>'" --query "[].{id:id, name:displayName, roleAssignable:isAssignableToRole}" -o json
+az ad group list --filter "isAssignableToRole eq true" --query "[].{id:id, name:displayName}" -o table
+az ad group member list --group <groupObjectId> --query "[].{id:id, name:displayName}" -o table
+az ad sp show --id <appId-or-objectId> --query "{id:id, appId:appId, name:displayName, type:servicePrincipalType}" -o json   # managed identities too
+az ad sp list --display-name "<name>" --query "[].{id:id, appId:appId, type:servicePrincipalType}" -o table
+```
+
 ### 2. Check built-in roles first
 A custom role is only justified when no built-in role fits.
 ```bash
@@ -32,6 +42,13 @@ az role definition list --query "[?roleType=='BuiltInRole' && contains(roleName,
 az role definition list --name "<Built-in name>" --query "[0].permissions" -o json
 ```
 If a built-in role covers the need with ≤ 1–2 extra actions, recommend it instead (state the gap).
+
+Entra built-in roles cannot be listed with `az ad` (they live under Graph `/roleManagement/directory`). Use the reference
+https://learn.microsoft.com/entra/identity/role-based-access-control/permissions-reference, or give the user:
+```powershell
+Connect-MgGraph -Scopes RoleManagement.Read.Directory
+Get-MgRoleManagementDirectoryRoleDefinition -Filter "isBuiltIn eq true" | Select-Object DisplayName, Id
+```
 
 ### 3. Gather evidence for the actions
 **a) From the provider catalogue (always):**
@@ -60,7 +77,13 @@ Gotchas (verified):
 - App registrations: https://learn.microsoft.com/entra/identity/role-based-access-control/custom-available-permissions
 - Enterprise apps: …/custom-enterprise-app-permissions · Users: …/custom-user-permissions · Groups: …/custom-group-permissions · Devices: …/custom-device-permissions
 
-Before proposing a new role, compare every observed operation with the identity's **other** role assignments (`az role definition list --name "<role>" --query "[0].permissions[0].actions"`); only the uncovered operations need the custom role. Discard one-off operations (e.g. a single resource-group write during a test) after confirming with the user.
+Before proposing a new role, compare every observed operation with the identity's **other** role assignments; only the uncovered operations need the custom role. Discard one-off operations (e.g. a single resource-group write during a test) after confirming with the user.
+```bash
+# --fill-principal-name false avoids a Graph name lookup that can fail; filter by object ID instead of --assignee
+az role assignment list --all --subscription <sub> --fill-principal-name false \
+  --query "[?principalId=='<objectId>'].{role:roleDefinitionName, scope:scope}" -o table
+az role definition list --name "<role>" --query "[0].permissions[0].{actions:actions, dataActions:dataActions}" -o json
+```
 
 ### 4. Draft the role
 Use the templates in this folder: `azure-custom-role.template.json`, `entra-custom-role.template.json`.
@@ -71,7 +94,7 @@ Design rules (Azure):
 2. **Never** include `Microsoft.Authorization/*`, `Microsoft.Authorization/roleAssignments/write`, `roleDefinitions/write` or `elevateAccess/action` unless the role is explicitly an access-management role, and flag it as HIGH risk.
 3. `NotActions` **subtracts** from `Actions`; it is **not a deny**. Another role assignment can still grant the excluded action.
 4. Keep `AssignableScopes` as narrow as the use case: one subscription or resource group. Root `/` is not allowed. Only **one management group** can be listed, and roles with `DataActions` **cannot** be assigned at management-group scope.
-5. Name convention: `<ORG>-<Workload>-<Capability>` (e.g. `RACARB-Arc-VMOperator`), description states scope, purpose, owner and date.
+5. Name convention: `<ORG>-<Workload>-<Capability>` (e.g. `CONTOSO-Arc-VMOperator`), description states scope, purpose, owner and date.
 6. Read access: include `Microsoft.Resources/subscriptions/resourceGroups/read` so the role can navigate the portal; add `Microsoft.Insights/alertRules/*` and `Microsoft.Support/*` only if needed.
 
 Design rules (Entra):
@@ -92,19 +115,43 @@ Design rules (Entra):
 ### 6. Validate and deliver
 - Validate JSON: `python3 -m json.tool role.json`.
 - Show the final JSON, the risk table and the deployment commands.
-- **Create only after explicit approval** (Review mode shows an approval card):
+- **Create only after explicit approval** (an Approve/Deny card is shown):
   ```bash
-  az role definition create --role-definition @role.json --subscription <sub>
-  az role definition update --role-definition @role.json --subscription <sub>   # changes: must include "Name" or "id"
+  az role definition create --subscription <sub> --role-definition '<create-format JSON: Name, IsCustom, Description, Actions, NotActions, DataActions, NotDataActions, AssignableScopes>'
   ```
-  Entra (the agent cannot write to Graph: hand the user this script):
+- **Update** (e.g. widen `AssignableScopes` from a resource group to the subscription):
+  1. Read the current definition: `az role definition list --custom-role-only true --query "[?roleName=='<name>']" -o json`.
+  2. Send the **whole** definition back; update replaces it, so omitted actions are lost.
+  3. Use the **list-output format** (`roleName` + full `id`), see `examples/update-role.example.json`. The create format (`Name`/`Id`) fails with `KeyError: 'roleName'` (verified).
+  4. Before and after, check assignments: widening only makes the role *assignable* more widely, but every existing assignment keeps its own scope.
+- **Entra custom role** (no Graph write from the agent): hand the user this script.
   ```powershell
   Connect-MgGraph -Scopes RoleManagement.ReadWrite.Directory
   New-MgRoleManagementDirectoryRoleDefinition -BodyParameter (Get-Content role.json -Raw | ConvertFrom-Json -AsHashtable)
   ```
+- **PIM-eligible Azure assignment** (`az rest` is not available to the agent): hand the user this script.
+  ```bash
+  az rest --method put \
+    --url "https://management.azure.com/<scope>/providers/Microsoft.Authorization/roleEligibilityScheduleRequests/$(cat /proc/sys/kernel/random/uuid)?api-version=2020-10-01" \
+    --body '{"properties":{"principalId":"<objectId>","roleDefinitionId":"<scope>/providers/Microsoft.Authorization/roleDefinitions/<roleGuid>","requestType":"AdminAssign","justification":"<why>","scheduleInfo":{"startDateTime":"<ISO UTC>","expiration":{"type":"AfterDuration","duration":"P365D"}}}}'
+  ```
+  An existing eligibility fails with `RoleAssignmentExists`; use `AdminExtend`/`AdminUpdate`. Permanent eligibility (`NoExpiration`) needs the role's PIM setting to allow it.
+- **PIM-eligible Entra assignment** (script for the user):
+  ```powershell
+  Connect-MgGraph -Scopes RoleEligibilitySchedule.ReadWrite.Directory
+  New-MgRoleManagementDirectoryRoleEligibilityScheduleRequest -BodyParameter @{ action="adminAssign"; principalId="<objectId>"; roleDefinitionId="<roleId>"; directoryScopeId="/"; justification="<why>"; scheduleInfo=@{ startDateTime=(Get-Date).ToUniversalTime().ToString("o"); expiration=@{ type="afterDuration"; duration="P365D" } } }
+  ```
+  A group can only receive an Entra role if it is role-assignable. Entra role PIM settings are tenant-wide per role: if permanent eligibility is rejected (`RoleAssignmentRequestPolicyValidationFailed`), use a duration instead of changing the setting silently.
 - Offer next steps: PIM-eligible assignment script, PR to the roles-as-code folder, and removal of the over-privileged assignment it replaces (never remove automatically).
 
-## Agent-specific constraints (this SRE Agent)
-- Azure CLI writes allowed: `create`, `update`, `set` (with approval). **Not allowed:** `delete`, `remove`, `az rest`. So: role creation works; PIM eligibility (`roleEligibilityScheduleRequests`) and Entra writes must be handed to the user as scripts.
-- Graph is read-only through the MCPEnterprise bridge (use it to read Entra role definitions/assignments).
-- Custom roles per tenant: max 5,000 (Azure); propagation of a new or changed role can take a few minutes.
+## Environment constraints (Azure SRE Agent)
+| Capability | How | Notes |
+|---|---|---|
+| Read Azure RBAC, provider operations, Activity Log | `RunAzCliReadCommands` | Needs Reader (or equivalent) on the scope |
+| Read Microsoft Graph: users, groups, members, service principals, apps | `RunAzCliReadCommands` with `az ad … show/list` | Direct Graph, no MCP connector. Needs Graph `Directory.Read.All` for the identity running the CLI |
+| Read Entra role definitions/assignments, PIM schedules | **Not available** (`az rest` is blocked, no `az ad` command) | Give the user a Graph PowerShell script and ask for the output |
+| Create/update Azure custom roles | `RunAzCliWriteCommands` (`az role definition create/update`) | Always shows an approval card; needs `Microsoft.Authorization/roleDefinitions/write` on the scope |
+| Delete roles, remove assignments, `az rest`, any Graph write | **Not allowed** | Hand the user a script |
+
+- Custom roles per tenant: max 5,000 (Azure); a new or changed role can take a few minutes to propagate.
+- An empty `az` result is not proof of absence: check the query against a known object first.
